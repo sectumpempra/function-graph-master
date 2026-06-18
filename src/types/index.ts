@@ -23,6 +23,7 @@ export interface ViewState {
   scale: number;
   offsetX: number;
   offsetY: number;
+  piMode?: boolean;
 }
 
 export interface Point {

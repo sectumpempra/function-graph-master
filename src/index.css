@@ -86,7 +86,7 @@
 
   /* Pill button */
   .pill-btn {
-    @apply inline-flex items-center gap-1.5 px-4 py-1.5 text-sm border border-black rounded-full transition-all duration-200 bg-white text-black hover:bg-black hover:text-white;
+    @apply inline-flex items-center gap-1.5 px-4 py-1.5 text-sm border border-black rounded-full transition-all duration-200 bg-white text-black hover:bg-black hover:text-white active:scale-90 active:bg-[#333];
   }
 
   /* Tooltip animation */

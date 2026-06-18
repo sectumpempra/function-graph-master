@@ -314,6 +314,36 @@ export function canvasToMath(cx: number, cy: number, cw: number, ch: number, vie
 }
 
 // ==== GRID ====
+// π mode constants
+const PI = Math.PI;
+const PI_LABELS: Record<number, string> = {
+  [PI]: 'π', [2*PI]: '2π', [3*PI]: '3π', [4*PI]: '4π', [5*PI]: '5π',
+  [6*PI]: '6π', [7*PI]: '7π', [8*PI]: '8π', [9*PI]: '9π', [10*PI]: '10π',
+  [PI/2]: 'π/2', [3*PI/2]: '3π/2', [5*PI/2]: '5π/2',
+};
+
+function formatPiTick(val: number): string {
+  const absVal = Math.abs(val);
+  // Check exact matches first
+  if (PI_LABELS[absVal]) return val < 0 ? '-' + PI_LABELS[absVal] : PI_LABELS[absVal];
+  // For half-pi: n*PI/2
+  const halfPiMult = Math.round(absVal / (PI/2));
+  if (Math.abs(absVal - halfPiMult * PI/2) < 0.001) {
+    if (halfPiMult === 0) return '0';
+    if (halfPiMult % 2 === 0) {
+      const n = halfPiMult / 2;
+      return val < 0 ? `-${n}π` : `${n}π`;
+    }
+    return val < 0 ? `-${halfPiMult}π/2` : `${halfPiMult}π/2`;
+  }
+  // For other fractions, show as nπ
+  const piMult = Math.round(absVal / PI * 100) / 100;
+  if (Math.abs(absVal - piMult * PI) < 0.01 && piMult > 0) {
+    return val < 0 ? `-${piMult}π` : `${piMult}π`;
+  }
+  return val.toFixed(2);
+}
+
 export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, view: ViewState) {
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = '#ffffff';
@@ -322,14 +352,24 @@ export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vi
   const up = 40 * view.scale;
   const cx = w / 2 + view.offsetX;
   const cy = h / 2 + view.offsetY;
+  const piMode = view.piMode ?? false;
 
+  // Grid step: use π-based steps in pi mode
   let gs = 1;
-  if (up < 12) gs = 2;
-  if (up < 6) gs = 5;
-  if (up < 3) gs = 10;
-  if (up < 1.5) gs = 20;
-  if (up > 80) gs = 0.5;
-  if (up > 160) gs = 0.25;
+  if (piMode) {
+    // π ≈ 3.14, so adjust step based on pixel density
+    if (up < 15) gs = 2 * PI;
+    else if (up < 30) gs = PI;
+    else if (up < 60) gs = PI / 2;
+    else gs = PI / 4;
+  } else {
+    if (up < 12) gs = 2;
+    if (up < 6) gs = 5;
+    if (up < 3) gs = 10;
+    if (up < 1.5) gs = 20;
+    if (up > 80) gs = 0.5;
+    if (up > 160) gs = 0.25;
+  }
 
   ctx.strokeStyle = '#f0f0f0';
   ctx.lineWidth = 1;
@@ -363,6 +403,7 @@ export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vi
   ctx.moveTo(cx - 4, 8); ctx.lineTo(cx, 0); ctx.lineTo(cx + 4, 8);
   ctx.fill();
 
+  // Axis labels
   ctx.fillStyle = '#6c6c6c';
   ctx.font = '11px ui-monospace, "Cascadia Code", "Source Code Pro", monospace';
   ctx.textAlign = 'center';
@@ -371,7 +412,8 @@ export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vi
     if (Math.abs(g) < 0.0001) continue;
     const px = cx + g * up;
     if (px < 10 || px > w - 10) continue;
-    ctx.fillText(Math.abs(g) >= 1 ? String(g) : g.toString(), px, Math.min(cy + 6, h - 16));
+    const label = piMode ? formatPiTick(g) : (Math.abs(g) >= 1 ? String(g) : g.toString());
+    ctx.fillText(label, px, Math.min(cy + 6, h - 16));
   }
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
@@ -379,7 +421,8 @@ export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vi
     if (Math.abs(g) < 0.0001) continue;
     const py = cy - g * up;
     if (py < 10 || py > h - 10) continue;
-    ctx.fillText(Math.abs(g) >= 1 ? String(g) : g.toString(), Math.min(cx + 6, w - 30), py);
+    const label = piMode ? formatPiTick(g) : (Math.abs(g) >= 1 ? String(g) : g.toString());
+    ctx.fillText(label, Math.min(cx + 6, w - 30), py);
   }
   if (cx > 5 && cx < w - 5 && cy > 5 && cy < h - 5) ctx.fillText('0', cx + 4, cy + 8);
 }
@@ -766,7 +809,18 @@ function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: n
   const lh = 26;
   let rx = Math.min(pos.cx, w - lw - 14);
   rx = Math.max(10, rx);
-  const ry = pos.cy - lh / 2;
+
+  // Offset label vertically so it doesn't overlap the curve
+  const yOffset = 32; // distance from curve
+  let labelCy: number;
+  if (pos.cy - yOffset - lh / 2 > 8) {
+    labelCy = pos.cy - yOffset; // place above curve
+  } else if (pos.cy + yOffset + lh / 2 < h - 8) {
+    labelCy = pos.cy + yOffset; // place below curve
+  } else {
+    labelCy = pos.cy - lh / 2; // fallback: at curve position
+  }
+  const ry = labelCy - lh / 2;
 
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.08)';

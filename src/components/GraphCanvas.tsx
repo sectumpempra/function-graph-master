@@ -17,11 +17,12 @@ interface GraphCanvasProps {
 export default function GraphCanvas({ functions }: GraphCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<ViewState>({ scale: 1, offsetX: 0, offsetY: 0 });
+  const viewRef = useRef<ViewState>({ scale: 1, offsetX: 0, offsetY: 0, piMode: false });
   const sizeRef = useRef({ width: 0, height: 0 });
   const dprRef = useRef(1);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ left: 0, top: 0 });
+  const [piMode, setPiMode] = useState(false);
   const isDragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
   const needsRenderRef = useRef(true);
@@ -39,8 +40,17 @@ export default function GraphCanvas({ functions }: GraphCanvasProps) {
   }, []);
 
   const resetView = useCallback(() => {
-    viewRef.current = { scale: 1, offsetX: 0, offsetY: 0 };
+    viewRef.current = { scale: 1, offsetX: 0, offsetY: 0, piMode: viewRef.current.piMode };
     needsRenderRef.current = true;
+  }, []);
+
+  const togglePiMode = useCallback(() => {
+    setPiMode((prev) => {
+      const next = !prev;
+      viewRef.current.piMode = next;
+      needsRenderRef.current = true;
+      return next;
+    });
   }, []);
 
   const render = useCallback(() => {
@@ -241,6 +251,15 @@ export default function GraphCanvas({ functions }: GraphCanvasProps) {
         </button>
         <button onClick={resetView} className="p-2 hover:bg-[#f5f5f5] transition-colors border-t border-[#e5e5e5]" title="重置视图 (0)">
           <Maximize className="w-4 h-4 text-[#333]" />
+        </button>
+        <button
+          onClick={togglePiMode}
+          className={`p-2 transition-colors border-t border-[#e5e5e5] text-xs font-bold mono-num ${
+            piMode ? 'bg-black text-white' : 'hover:bg-[#f5f5f5] text-[#333]'
+          }`}
+          title="切换 π 刻度"
+        >
+          {piMode ? 'π' : 'x'}
         </button>
       </div>
 
