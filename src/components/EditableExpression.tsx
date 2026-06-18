@@ -130,30 +130,30 @@ function buildSegments(
   // Sort by length descending to match longest first
   const sortedByLength = [...searchValues].sort((a, b) => b.valStr.length - a.valStr.length);
 
-  // Step 4: Scan formatted string left-to-right
+  // Step 4: Build segments with proper ^exponent protection
   const segments: { text: string; isParam: boolean; paramName?: string; paramValue?: number }[] = [];
   let pos = 0;
 
-  // Precompute positions of ^ so we can skip exponent digits
-  const caretPositions = new Set<number>();
-  for (let i = 0; i < formatted.length; i++) {
-    if (formatted[i] === '^') {
-      // Mark all digits after ^ as part of exponent (non-param)
-      let j = i + 1;
-      while (j < formatted.length && /[0-9\u00B9\u00B2\u00B3\u2070-\u2079\u207B]/.test(formatted[j])) {
-        caretPositions.add(j);
-        j++;
-      }
-    }
+  // Helper: check if a position is part of a ^exponent (e.g. ^2, ^10)
+  function getExponentStart(i: number): number {
+    // Walk backward to find the ^ that starts this exponent
+    if (i < 0 || i >= formatted.length) return -1;
+    // Check if i points to ^ itself
+    if (formatted[i] === '^' && i + 1 < formatted.length && /[0-9]/.test(formatted[i + 1])) return i;
+    // Check if i points to a digit that follows ^
+    if (!/[0-9]/.test(formatted[i])) return -1;
+    let j = i - 1;
+    while (j >= 0 && /[0-9]/.test(formatted[j])) j--;
+    if (j >= 0 && formatted[j] === '^') return j;
+    return -1;
   }
 
   while (pos < formatted.length) {
-    let matched = false;
-
-    // Skip any position that is part of a ^ exponent
-    if (caretPositions.has(pos)) {
+    // Handle ^exponent as a single non-param block
+    const expStart = getExponentStart(pos);
+    if (expStart >= 0 && expStart === pos) {
       let text = '';
-      while (pos < formatted.length && caretPositions.has(pos)) {
+      while (pos < formatted.length && getExponentStart(pos) === expStart) {
         text += formatted[pos];
         pos++;
       }
@@ -161,47 +161,58 @@ function buildSegments(
       continue;
     }
 
-    for (const { valStr, name, value } of sortedByLength) {
-      if (formatted.substring(pos, pos + valStr.length) === valStr) {
-        // Check if any matched character falls inside a ^ exponent
-        let overlapsExponent = false;
-        for (let k = pos; k < pos + valStr.length; k++) {
-          if (caretPositions.has(k)) { overlapsExponent = true; break; }
-        }
-        if (overlapsExponent) continue;
+    // Skip positions that are inside a ^exponent (not at its start)
+    if (getExponentStart(pos) >= 0) {
+      pos++;
+      continue;
+    }
 
+    // Try to match a param value
+    let matched = false;
+    for (const { valStr, name, value } of sortedByLength) {
+      if (formatted.substring(pos, pos + valStr.length) !== valStr) continue;
+
+      // Check if match overlaps with any ^exponent
+      let overlapsExponent = false;
+      for (let k = pos; k < pos + valStr.length && k < formatted.length; k++) {
+        if (getExponentStart(k) >= 0) { overlapsExponent = true; break; }
+      }
+      if (overlapsExponent) continue;
+
+      const before = pos > 0 ? formatted[pos - 1] : '';
+      const after = pos + valStr.length < formatted.length ? formatted[pos + valStr.length] : '';
+      if (!/[a-zA-Z0-9.]/.test(before) && !/[a-zA-Z0-9.]/.test(after)) {
+        segments.push({ text: name, isParam: true, paramName: name, paramValue: value });
+        pos += valStr.length;
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+
+    // Collect non-param text
+    let text = '';
+    while (pos < formatted.length) {
+      if (getExponentStart(pos) >= 0) break; // stop before ^exponent
+      let isParamStart = false;
+      for (const { valStr } of sortedByLength) {
+        if (formatted.substring(pos, pos + valStr.length) !== valStr) continue;
+        let overlapsExp = false;
+        for (let k = pos; k < pos + valStr.length && k < formatted.length; k++) {
+          if (getExponentStart(k) >= 0) { overlapsExp = true; break; }
+        }
+        if (overlapsExp) continue;
         const before = pos > 0 ? formatted[pos - 1] : '';
         const after = pos + valStr.length < formatted.length ? formatted[pos + valStr.length] : '';
         if (!/[a-zA-Z0-9.]/.test(before) && !/[a-zA-Z0-9.]/.test(after)) {
-          // text = param name (shown in edit mode), paramValue for display in normal mode
-          segments.push({ text: name, isParam: true, paramName: name, paramValue: value });
-          pos += valStr.length;
-          matched = true;
-          break;
+          isParamStart = true; break;
         }
       }
+      if (isParamStart) break;
+      text += formatted[pos];
+      pos++;
     }
-
-    if (!matched) {
-      let text = '';
-      while (pos < formatted.length) {
-        let isParamStart = false;
-        for (const { valStr } of sortedByLength) {
-          if (formatted.substring(pos, pos + valStr.length) === valStr) {
-            const before = pos > 0 ? formatted[pos - 1] : '';
-            const after = pos + valStr.length < formatted.length ? formatted[pos + valStr.length] : '';
-            if (!/[a-zA-Z0-9.]/.test(before) && !/[a-zA-Z0-9.]/.test(after)) {
-              isParamStart = true;
-              break;
-            }
-          }
-        }
-        if (isParamStart) break;
-        text += formatted[pos];
-        pos++;
-      }
-      if (text) segments.push({ text, isParam: false });
-    }
+    if (text) segments.push({ text, isParam: false });
   }
 
   return segments;

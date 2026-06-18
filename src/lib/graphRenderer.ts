@@ -715,6 +715,10 @@ function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: n
     return `log${toSubCanvas(base)}(${inner})`;
   });
 
+  // Convert ^digit to Unicode superscript BEFORE zero-cleanup, so ^ won't interact with +- signs
+  const SUP: Record<string, string> = { '0': '\u2070', '1': '\u00B9', '2': '\u00B2', '3': '\u00B3', '4': '\u2074', '5': '\u2075', '6': '\u2076', '7': '\u2077', '8': '\u2078', '9': '\u2079' };
+  display = display.replace(/\^([0-9])/g, (_, digit) => SUP[digit] || _);
+
   // Zero-coefficient cleanup (loop until stable)
   let prev: string;
   do {
@@ -735,9 +739,6 @@ function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: n
     display = display.replace(/^\+/g, '');
   } while (display !== prev);
 
-  // Superscripts
-  const SUP: Record<string, string> = { '0': '\u2070', '1': '\u00B9', '2': '\u00B2', '3': '\u00B3', '4': '\u2074', '5': '\u2075', '6': '\u2076', '7': '\u2077', '8': '\u2078', '9': '\u2079', '-': '\u207B' };
-  display = display.replace(/\^([0-9-]+)/g, (_, num) => num.split('').map((ch: string) => SUP[ch] ?? ch).join(''));
   display = display.replace(/theta/g, '\u03B8').replace(/sqrt/g, '\u221A');
   const label = prefix + display;
 

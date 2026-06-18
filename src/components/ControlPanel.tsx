@@ -16,19 +16,32 @@ interface ControlPanelProps {
 // ===== Trigonometric presets: a=amplitude, b=frequency, c=horizontal shift, d=vertical shift =====
 // All presets use domain -10 ~ 10, all have a,b,c,d four sliders
 // Expression form: a*sin(b*x+c)+d — NOT b*(x+c), to avoid double parens when c=0 or b=1
-const TRIG_PRESETS: PresetFunction[] = [
-  { name: 'sin',    expression: 'a*sin(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'cos',    expression: 'a*cos(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'tan',    expression: 'a*tan(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'cot',    expression: 'a*cot(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'sec',    expression: 'a*sec(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'csc',    expression: 'a/sin(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'sinh',   expression: 'a*sinh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'cosh',   expression: 'a*cosh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'tanh',   expression: 'a*tanh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
-  { name: 'arcsin', expression: 'a*asin(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-1', domainMax: '1' },
-  { name: 'arccos', expression: 'a*acos(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-1', domainMax: '1' },
-  { name: 'arctan', expression: 'a*atan(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+// Trig presets grouped by row for display
+const TRIG_ROWS: PresetFunction[][] = [
+  // Row 1: basic trig
+  [
+    { name: 'sin', expression: 'a*sin(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+    { name: 'cos', expression: 'a*cos(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+    { name: 'tan', expression: 'a*tan(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+  ],
+  // Row 2: reciprocal trig
+  [
+    { name: 'sec',  expression: 'a*sec(b*x+c)+d',  params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+    { name: 'csc',  expression: 'a/sin(b*x+c)+d',  params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+    { name: 'cot',  expression: 'a*cot(b*x+c)+d',  params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+  ],
+  // Row 3: inverse trig
+  [
+    { name: 'arcsin', expression: 'a*asin(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-1', domainMax: '1' },
+    { name: 'arccos', expression: 'a*acos(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-1', domainMax: '1' },
+    { name: 'arctan', expression: 'a*atan(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+  ],
+  // Row 4: hyperbolic trig
+  [
+    { name: 'sinh', expression: 'a*sinh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+    { name: 'cosh', expression: 'a*cosh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+    { name: 'tanh', expression: 'a*tanh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+  ],
 ];
 
 // ===== Algebraic / other presets: d=vertical offset =====
@@ -117,9 +130,13 @@ export default function ControlPanel({
           </div>
           {/* Tab content */}
           {cartTab === 'trig' && (
-            <div className="flex flex-wrap gap-2">
-              {TRIG_PRESETS.map((p) => (
-                <button key={p.name} onClick={() => onApplyPreset(p)} className="pill-btn">{fmt(p.name)}</button>
+            <div className="space-y-2">
+              {TRIG_ROWS.map((row, ri) => (
+                <div key={ri} className="flex flex-wrap gap-2">
+                  {row.map((p) => (
+                    <button key={p.name} onClick={() => onApplyPreset(p)} className="pill-btn">{fmt(p.name)}</button>
+                  ))}
+                </div>
               ))}
             </div>
           )}
