@@ -132,18 +132,18 @@ export default function ControlPanel({
           {cartTab === 'trig' && (
             <div className="space-y-2">
               {TRIG_ROWS.map((row, ri) => (
-                <div key={ri} className="flex flex-wrap gap-2">
+                <div key={ri} className="grid grid-cols-3 gap-2">
                   {row.map((p) => (
-                    <button key={p.name} onClick={() => onApplyPreset(p)} className="pill-btn">{fmt(p.name)}</button>
+                    <button key={p.name} onClick={() => onApplyPreset(p)} className="pill-btn justify-center">{fmt(p.name)}</button>
                   ))}
                 </div>
               ))}
             </div>
           )}
           {cartTab === 'algebra' && (
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {ALGEBRA_PRESETS.map((p) => (
-                <button key={p.name} onClick={() => onApplyPreset(p)} className="pill-btn">{fmt(p.name)}</button>
+                <button key={p.name} onClick={() => onApplyPreset(p)} className="pill-btn justify-center">{fmt(p.name)}</button>
               ))}
             </div>
           )}
@@ -152,9 +152,9 @@ export default function ControlPanel({
         {/* ===== Polar presets ===== */}
         <div className="pt-4 border-t border-[#e5e5e5]">
           <h3 className="text-xs font-medium text-[#6c6c6c] uppercase tracking-wider mb-3">极坐标预设</h3>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {POLAR_PRESETS.map((p) => (
-              <button key={p.name} onClick={() => onApplyPreset(p)} className="pill-btn">{fmt(p.name)}</button>
+              <button key={p.name} onClick={() => onApplyPreset(p)} className="pill-btn justify-center">{fmt(p.name)}</button>
             ))}
           </div>
         </div>

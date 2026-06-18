@@ -858,7 +858,7 @@ function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: n
   ctx.fillStyle = '#1a1a1a';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, rx + barW + padX, pos.cy + 0.5);
+  ctx.fillText(label, rx + barW + padX, labelCy + 0.5);
 }
 
 export function drawFunctionLabels(ctx: CanvasRenderingContext2D, functions: FunctionEntry[], w: number, h: number, view: ViewState) {
