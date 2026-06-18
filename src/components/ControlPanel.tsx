@@ -26,11 +26,15 @@ const TRIG_PRESETS: PresetFunction[] = [
   { name: 'sinh',   expression: 'a*sinh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
   { name: 'cosh',   expression: 'a*cosh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
   { name: 'tanh',   expression: 'a*tanh(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
+  { name: 'arcsin', expression: 'a*asin(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-1', domainMax: '1' },
+  { name: 'arccos', expression: 'a*acos(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-1', domainMax: '1' },
+  { name: 'arctan', expression: 'a*atan(b*x+c)+d', params: { a: 1, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
 ];
 
 // ===== Algebraic / other presets: d=vertical offset =====
 // All presets use domain -10 ~ 10, except log uses 0 ~ 10
 const ALGEBRA_PRESETS: PresetFunction[] = [
+  { name: '一次函数 linear',      expression: 'a*x+b', params: { a: 1, b: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
   { name: '二次抛物线 parabola',  expression: 'a*x^2+b*x+c', params: { a: 1, b: 0, c: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
   { name: '指数增长 exponential', expression: 'a^(b*x+c)+d', params: { a: 2, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '-10', domainMax: '10' },
   { name: '对数 log',              expression: 'log(b*x+c)/log(a)+d', params: { a: 10, b: 1, c: 0, d: 0 }, mode: 'cartesian', domainMin: '0', domainMax: '10' },

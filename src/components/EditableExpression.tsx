@@ -134,11 +134,42 @@ function buildSegments(
   const segments: { text: string; isParam: boolean; paramName?: string; paramValue?: number }[] = [];
   let pos = 0;
 
+  // Precompute positions of ^ so we can skip exponent digits
+  const caretPositions = new Set<number>();
+  for (let i = 0; i < formatted.length; i++) {
+    if (formatted[i] === '^') {
+      // Mark all digits after ^ as part of exponent (non-param)
+      let j = i + 1;
+      while (j < formatted.length && /[0-9\u00B9\u00B2\u00B3\u2070-\u2079\u207B]/.test(formatted[j])) {
+        caretPositions.add(j);
+        j++;
+      }
+    }
+  }
+
   while (pos < formatted.length) {
     let matched = false;
 
+    // Skip any position that is part of a ^ exponent
+    if (caretPositions.has(pos)) {
+      let text = '';
+      while (pos < formatted.length && caretPositions.has(pos)) {
+        text += formatted[pos];
+        pos++;
+      }
+      if (text) segments.push({ text, isParam: false });
+      continue;
+    }
+
     for (const { valStr, name, value } of sortedByLength) {
       if (formatted.substring(pos, pos + valStr.length) === valStr) {
+        // Check if any matched character falls inside a ^ exponent
+        let overlapsExponent = false;
+        for (let k = pos; k < pos + valStr.length; k++) {
+          if (caretPositions.has(k)) { overlapsExponent = true; break; }
+        }
+        if (overlapsExponent) continue;
+
         const before = pos > 0 ? formatted[pos - 1] : '';
         const after = pos + valStr.length < formatted.length ? formatted[pos + valStr.length] : '';
         if (!/[a-zA-Z0-9.]/.test(before) && !/[a-zA-Z0-9.]/.test(after)) {
