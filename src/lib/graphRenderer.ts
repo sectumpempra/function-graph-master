@@ -314,34 +314,98 @@ export function canvasToMath(cx: number, cy: number, cw: number, ch: number, vie
 }
 
 // ==== GRID ====
-// π mode constants
 const PI = Math.PI;
-const PI_LABELS: Record<number, string> = {
-  [PI]: 'π', [2*PI]: '2π', [3*PI]: '3π', [4*PI]: '4π', [5*PI]: '5π',
-  [6*PI]: '6π', [7*PI]: '7π', [8*PI]: '8π', [9*PI]: '9π', [10*PI]: '10π',
-  [PI/2]: 'π/2', [3*PI/2]: '3π/2', [5*PI/2]: '5π/2',
-};
 
-function formatPiTick(val: number): string {
+/** Get grid step based on pixel density (for integer axis) */
+function getGridStep(up: number): number {
+  if (up > 160) return 0.25;
+  if (up > 80) return 0.5;
+  if (up < 1.5) return 20;
+  if (up < 3) return 10;
+  if (up < 6) return 5;
+  if (up < 12) return 2;
+  return 1;
+}
+
+/** Get π-based grid step for x-axis */
+function getPiStep(up: number): number {
+  if (up < 15) return 2 * PI;
+  if (up < 30) return PI;
+  if (up < 60) return PI / 2;
+  return PI / 4;
+}
+
+/** Parse a value into π fraction parts for vertical fraction rendering */
+function getPiFraction(val: number): { num: string; den: string } | null {
   const absVal = Math.abs(val);
-  // Check exact matches first
-  if (PI_LABELS[absVal]) return val < 0 ? '-' + PI_LABELS[absVal] : PI_LABELS[absVal];
-  // For half-pi: n*PI/2
-  const halfPiMult = Math.round(absVal / (PI/2));
-  if (Math.abs(absVal - halfPiMult * PI/2) < 0.001) {
-    if (halfPiMult === 0) return '0';
-    if (halfPiMult % 2 === 0) {
-      const n = halfPiMult / 2;
-      return val < 0 ? `-${n}π` : `${n}π`;
-    }
-    return val < 0 ? `-${halfPiMult}π/2` : `${halfPiMult}π/2`;
+  const halfPiMult = Math.round(absVal / (PI / 2));
+  if (Math.abs(absVal - halfPiMult * PI / 2) > 0.001) return null;
+  if (halfPiMult === 0) return null;
+  if (halfPiMult % 2 === 0) return null; // nπ, draw inline
+  // odd multiple: π/2, 3π/2, 5π/2...
+  const n = halfPiMult;
+  return { num: n === 1 ? 'π' : `${n}π`, den: '2' };
+}
+
+/** Draw a vertical fraction (numerator over denominator with a bar) at (x, y) */
+function drawFraction(ctx: CanvasRenderingContext2D, x: number, y: number, num: string, den: string) {
+  ctx.save();
+  const fs = 10;
+  ctx.font = `${fs}px ui-monospace, "Cascadia Code", "Source Code Pro", monospace`;
+  const numW = ctx.measureText(num).width;
+  const denW = ctx.measureText(den).width;
+  const barW = Math.max(numW, denW, 12);
+
+  ctx.fillStyle = '#6c6c6c';
+  ctx.textAlign = 'center';
+
+  // Numerator
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(num, x, y - 3);
+
+  // Fraction bar
+  ctx.strokeStyle = '#6c6c6c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x - barW / 2, y);
+  ctx.lineTo(x + barW / 2, y);
+  ctx.stroke();
+
+  // Denominator
+  ctx.textBaseline = 'top';
+  ctx.fillText(den, x, y + 2);
+  ctx.restore();
+}
+
+/** Draw x-axis label: inline for nπ, vertical fraction for nπ/2 */
+function drawXAxisLabel(ctx: CanvasRenderingContext2D, val: number, x: number, y: number) {
+  const absVal = Math.abs(val);
+  if (absVal < 0.0001) return;
+
+  // Check if it's an odd multiple of π/2 → draw as vertical fraction
+  const frac = getPiFraction(val);
+  if (frac) {
+    drawFraction(ctx, x, y, frac.num, frac.den);
+    return;
   }
-  // For other fractions, show as nπ
-  const piMult = Math.round(absVal / PI * 100) / 100;
-  if (Math.abs(absVal - piMult * PI) < 0.01 && piMult > 0) {
-    return val < 0 ? `-${piMult}π` : `${piMult}π`;
+
+  // Inline: nπ
+  const halfPiMult = Math.round(absVal / (PI / 2));
+  if (halfPiMult % 2 === 0) {
+    const n = halfPiMult / 2;
+    const label = n === 1 ? 'π' : (n === -1 ? '-π' : `${n}π`);
+    ctx.fillStyle = '#6c6c6c';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, x, y);
+    return;
   }
-  return val.toFixed(2);
+
+  // Fallback
+  ctx.fillStyle = '#6c6c6c';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(val.toFixed(2), x, y);
 }
 
 export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, view: ViewState) {
@@ -354,40 +418,31 @@ export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vi
   const cy = h / 2 + view.offsetY;
   const piMode = view.piMode ?? false;
 
-  // Grid step: use π-based steps in pi mode
-  let gs = 1;
-  if (piMode) {
-    // π ≈ 3.14, so adjust step based on pixel density
-    if (up < 15) gs = 2 * PI;
-    else if (up < 30) gs = PI;
-    else if (up < 60) gs = PI / 2;
-    else gs = PI / 4;
-  } else {
-    if (up < 12) gs = 2;
-    if (up < 6) gs = 5;
-    if (up < 3) gs = 10;
-    if (up < 1.5) gs = 20;
-    if (up > 80) gs = 0.5;
-    if (up > 160) gs = 0.25;
-  }
+  // Separate steps: x-axis may use π, y-axis always uses integer
+  const gsX = piMode ? getPiStep(up) : getGridStep(up);
+  const gsY = getGridStep(up);
 
+  // --- Grid lines ---
   ctx.strokeStyle = '#f0f0f0';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  const sgx = Math.floor((-cx) / (up * gs)) * gs;
-  const egx = Math.ceil((w - cx) / (up * gs)) * gs;
-  for (let g = sgx; g <= egx; g += gs) {
+  // Vertical lines (x-axis grid)
+  const sgx = Math.floor((-cx) / (up * gsX)) * gsX;
+  const egx = Math.ceil((w - cx) / (up * gsX)) * gsX;
+  for (let g = sgx; g <= egx; g += gsX) {
     const px = cx + g * up;
     if (Math.abs(g) > 0.0001) { ctx.moveTo(px, 0); ctx.lineTo(px, h); }
   }
-  const sgy = Math.floor((cy - h) / (up * gs)) * gs;
-  const egy = Math.ceil(cy / (up * gs)) * gs;
-  for (let g = sgy; g <= egy; g += gs) {
+  // Horizontal lines (y-axis grid, always integer)
+  const sgy = Math.floor((cy - h) / (up * gsY)) * gsY;
+  const egy = Math.ceil(cy / (up * gsY)) * gsY;
+  for (let g = sgy; g <= egy; g += gsY) {
     const py = cy - g * up;
     if (Math.abs(g) > 0.0001) { ctx.moveTo(0, py); ctx.lineTo(w, py); }
   }
   ctx.stroke();
 
+  // --- Axes ---
   ctx.strokeStyle = '#000000';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -395,6 +450,7 @@ export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vi
   ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
   ctx.stroke();
 
+  // Arrowheads
   ctx.fillStyle = '#000000';
   ctx.beginPath();
   ctx.moveTo(w - 8, cy - 4); ctx.lineTo(w, cy); ctx.lineTo(w - 8, cy + 4);
@@ -403,28 +459,43 @@ export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number, vi
   ctx.moveTo(cx - 4, 8); ctx.lineTo(cx, 0); ctx.lineTo(cx + 4, 8);
   ctx.fill();
 
-  // Axis labels
-  ctx.fillStyle = '#6c6c6c';
-  ctx.font = '11px ui-monospace, "Cascadia Code", "Source Code Pro", monospace';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  for (let g = sgx; g <= egx; g += gs) {
+  // --- Axis labels ---
+  // X-axis labels (π mode or integer)
+  for (let g = sgx; g <= egx; g += gsX) {
     if (Math.abs(g) < 0.0001) continue;
     const px = cx + g * up;
     if (px < 10 || px > w - 10) continue;
-    const label = piMode ? formatPiTick(g) : (Math.abs(g) >= 1 ? String(g) : g.toString());
-    ctx.fillText(label, px, Math.min(cy + 6, h - 16));
+    if (piMode) {
+      drawXAxisLabel(ctx, g, px, Math.min(cy + 6, h - 22));
+    } else {
+      ctx.fillStyle = '#6c6c6c';
+      ctx.font = '11px ui-monospace, "Cascadia Code", "Source Code Pro", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(Math.abs(g) >= 1 ? String(g) : g.toString(), px, Math.min(cy + 6, h - 16));
+    }
   }
+
+  // Y-axis labels (always integer, never π)
+  ctx.fillStyle = '#6c6c6c';
+  ctx.font = '11px ui-monospace, "Cascadia Code", "Source Code Pro", monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  for (let g = sgy; g <= egy; g += gs) {
+  for (let g = sgy; g <= egy; g += gsY) {
     if (Math.abs(g) < 0.0001) continue;
     const py = cy - g * up;
     if (py < 10 || py > h - 10) continue;
-    const label = piMode ? formatPiTick(g) : (Math.abs(g) >= 1 ? String(g) : g.toString());
-    ctx.fillText(label, Math.min(cx + 6, w - 30), py);
+    ctx.fillText(Math.abs(g) >= 1 ? String(g) : g.toString(), Math.min(cx + 6, w - 30), py);
   }
-  if (cx > 5 && cx < w - 5 && cy > 5 && cy < h - 5) ctx.fillText('0', cx + 4, cy + 8);
+
+  // Origin label
+  if (cx > 5 && cx < w - 5 && cy > 5 && cy < h - 5) {
+    ctx.fillStyle = '#6c6c6c';
+    ctx.font = '11px ui-monospace, "Cascadia Code", "Source Code Pro", monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('0', cx + 4, cy + 8);
+  }
 }
 
 // ==== CARTESIAN with domain ====
@@ -720,7 +791,7 @@ function toSubCanvas(str: string): string {
   return str.split('').map(ch => C_SUB[ch] ?? ch).join('');
 }
 
-function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: number, h: number, view: ViewState, li: number) {
+function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: number, h: number, view: ViewState, li: number, placedLabels: { top: number; bottom: number }[]) {
   if (!entry.visible || !entry.expression.trim()) return;
   const compiled = compileExpression(entry.expression, entry.mode);
   if (!compiled) return;
@@ -810,17 +881,52 @@ function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: n
   let rx = Math.min(pos.cx, w - lw - 14);
   rx = Math.max(10, rx);
 
-  // Offset label vertically so it doesn't overlap the curve
-  const yOffset = 32; // distance from curve
-  let labelCy: number;
-  if (pos.cy - yOffset - lh / 2 > 8) {
-    labelCy = pos.cy - yOffset; // place above curve
-  } else if (pos.cy + yOffset + lh / 2 < h - 8) {
-    labelCy = pos.cy + yOffset; // place below curve
-  } else {
-    labelCy = pos.cy - lh / 2; // fallback: at curve position
+  // Compute label y position: offset from curve, avoid overlapping other labels
+  const minGap = 6;   // gap between labels
+  const yOffset = 36; // distance from curve
+  let bestCy = pos.cy;
+  let bestScore = -Infinity;
+
+  // Try multiple candidate positions and pick the best
+  const candidates: number[] = [];
+  // Above the curve
+  if (pos.cy - yOffset - lh / 2 > 10) candidates.push(pos.cy - yOffset);
+  if (pos.cy - yOffset * 1.5 - lh / 2 > 10) candidates.push(pos.cy - yOffset * 1.5);
+  if (pos.cy - yOffset * 2 - lh / 2 > 10) candidates.push(pos.cy - yOffset * 2);
+  // Below the curve
+  if (pos.cy + yOffset + lh / 2 < h - 10) candidates.push(pos.cy + yOffset);
+  if (pos.cy + yOffset * 1.5 + lh / 2 < h - 10) candidates.push(pos.cy + yOffset * 1.5);
+  if (pos.cy + yOffset * 2 + lh / 2 < h - 10) candidates.push(pos.cy + yOffset * 2);
+  // Fallbacks
+  if (candidates.length === 0) {
+    if (pos.cy > h / 2) candidates.push(10 + lh / 2);
+    else candidates.push(h - 10 - lh / 2);
   }
+
+  for (const candidateCy of candidates) {
+    const candidateRy = candidateCy - lh / 2;
+    // Check overlap with already-placed labels
+    let overlapPenalty = 0;
+    for (const other of placedLabels) {
+      if (candidateRy < other.bottom + minGap && candidateRy + lh > other.top - minGap) {
+        const overlap = Math.min(candidateRy + lh, other.bottom) - Math.max(candidateRy, other.top);
+        overlapPenalty += overlap + 100; // heavy penalty for overlap
+      }
+    }
+    // Prefer positions closer to the curve (more readable)
+    const distFromCurve = Math.abs(candidateCy - pos.cy);
+    const score = -distFromCurve - overlapPenalty;
+    if (score > bestScore) {
+      bestScore = score;
+      bestCy = candidateCy;
+    }
+  }
+
+  const labelCy = bestCy;
   const ry = labelCy - lh / 2;
+
+  // Record this label's position for subsequent labels
+  placedLabels.push({ top: ry, bottom: ry + lh });
 
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.08)';
@@ -862,10 +968,11 @@ function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: n
 }
 
 export function drawFunctionLabels(ctx: CanvasRenderingContext2D, functions: FunctionEntry[], w: number, h: number, view: ViewState) {
+  const placedLabels: { top: number; bottom: number }[] = [];
   let idx = 0;
   for (const e of functions) {
     if (!e.visible || !e.expression.trim()) continue;
-    drawFuncLabel(ctx, e, w, h, view, idx);
+    drawFuncLabel(ctx, e, w, h, view, idx, placedLabels);
     idx++;
   }
 }
