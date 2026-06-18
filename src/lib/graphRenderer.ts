@@ -535,6 +535,19 @@ export function drawCartesianFunction(ctx: CanvasRenderingContext2D, entry: Func
         drawHorizontalAsymptote(ctx, lowerY, entry.color, w, p.d - aVal);
       }
     }
+
+    // 4. arctan: a*atan(b*x+c) + d → y = d ± a*π/2
+    if (exprLower.includes('atan(') && p.a !== undefined && p.d !== undefined) {
+      const aVal = Math.abs(p.a) * Math.PI / 2;
+      const upperY = cy - (p.d + aVal) * up;
+      if (upperY > 0 && upperY < h) {
+        drawHorizontalAsymptote(ctx, upperY, entry.color, w, p.d + aVal);
+      }
+      const lowerY = cy - (p.d - aVal) * up;
+      if (lowerY > 0 && lowerY < h) {
+        drawHorizontalAsymptote(ctx, lowerY, entry.color, w, p.d - aVal);
+      }
+    }
   }
 
   ctx.strokeStyle = entry.color;
@@ -739,25 +752,59 @@ function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: n
     display = display.replace(/^\+/g, '');
   } while (display !== prev);
 
+  // Inverse trig full names
+  display = display.replace(/asin/g, 'arcsin').replace(/acos/g, 'arccos').replace(/atan/g, 'arctan');
   display = display.replace(/theta/g, '\u03B8').replace(/sqrt/g, '\u221A');
   const label = prefix + display;
 
-  ctx.font = '12px ui-monospace, "SF Mono", "Menlo", monospace';
+  // ==== Styled label with colored accent bar ====
+  ctx.font = '13px ui-monospace, "SF Mono", "Menlo", "Cascadia Code", monospace';
   const tm = ctx.measureText(label);
-  const pw = 6;
-  const lw = tm.width + pw * 2;
-  const lh = 22;
-  const rx = Math.min(pos.cx, w - lw - 10);
+  const padX = 10;
+  const barW = 3;
+  const lw = tm.width + padX * 2 + barW;
+  const lh = 26;
+  let rx = Math.min(pos.cx, w - lw - 14);
+  rx = Math.max(10, rx);
+  const ry = pos.cy - lh / 2;
 
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
   ctx.beginPath();
-  (ctx as any).roundRect(rx, pos.cy - lh / 2, lw, lh, 3);
+  (ctx as any).roundRect(rx + 1, ry + 2, lw, lh, 6);
   ctx.fill();
 
-  ctx.fillStyle = '#000';
+  // White background
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.beginPath();
+  (ctx as any).roundRect(rx, ry, lw, lh, 6);
+  ctx.fill();
+
+  // Subtle border
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  (ctx as any).roundRect(rx + 0.5, ry + 0.5, lw - 1, lh - 1, 6);
+  ctx.stroke();
+
+  // Colored accent bar on left
+  ctx.fillStyle = entry.color;
+  ctx.beginPath();
+  const cornerR = 6;
+  ctx.moveTo(rx + cornerR, ry);
+  ctx.arcTo(rx, ry, rx, ry + cornerR, cornerR);
+  ctx.lineTo(rx, ry + lh - cornerR);
+  ctx.arcTo(rx, ry + lh, rx + cornerR, ry + lh, cornerR);
+  ctx.lineTo(rx + barW, ry + lh);
+  ctx.lineTo(rx + barW, ry);
+  ctx.closePath();
+  ctx.fill();
+
+  // Label text
+  ctx.fillStyle = '#1a1a1a';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, rx + 6, pos.cy);
+  ctx.fillText(label, rx + barW + padX, pos.cy + 0.5);
 }
 
 export function drawFunctionLabels(ctx: CanvasRenderingContext2D, functions: FunctionEntry[], w: number, h: number, view: ViewState) {

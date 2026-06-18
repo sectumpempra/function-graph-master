@@ -70,6 +70,11 @@ function formatGlobal(expr: string): string {
   s = s.replace(/\^\(([^)]+)\)/g, '^$1');
   // Keep ^ prefix as marker — will be rendered as <sup> in React
 
+  // Inverse trig: asin → arcsin, acos → arccos, atan → arctan
+  s = s.replace(/asin/g, 'arcsin');
+  s = s.replace(/acos/g, 'arccos');
+  s = s.replace(/atan/g, 'arctan');
+
   // Math symbols
   s = s.replace(/theta/g, '\u03B8');
   s = s.replace(/sqrt/g, '\u221A');  // sqrt(x) → √(x), keep parens
