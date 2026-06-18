@@ -385,7 +385,8 @@ function drawXAxisLabel(ctx: CanvasRenderingContext2D, val: number, x: number, y
   // Check if it's an odd multiple of π/2 → draw as vertical fraction
   const frac = getPiFraction(val);
   if (frac) {
-    drawFraction(ctx, x, y, frac.num, frac.den);
+    // Offset fraction downward so it doesn't overlap the x-axis
+    drawFraction(ctx, x, y + 10, frac.num, frac.den);
     return;
   }
 
