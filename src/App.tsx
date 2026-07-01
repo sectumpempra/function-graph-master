@@ -46,7 +46,6 @@ function deserializeState(hash: string): FunctionEntry[] | null {
     const decoded = decodeURIComponent(atob(hash));
     const data = JSON.parse(decoded);
     if (!Array.isArray(data)) return null;
-    idCounter = 0;
     return data.map((item: any, index: number) => ({
       id: generateId(),
       expression: item.e || '',
@@ -159,6 +158,11 @@ export default function App() {
   const handleShare = useCallback(() => {
     const hash = serializeState(functions);
     const url = window.location.origin + window.location.pathname + '#' + hash;
+    // Check URL length — most browsers limit to ~8000 chars, but 2000 is a safe threshold
+    if (url.length > 2000) {
+      toast.error('链接过长，请改用导出 PNG 分享');
+      return;
+    }
     navigator.clipboard.writeText(url).then(() => toast.success('链接已复制')).catch(() => toast.error('复制失败'));
   }, [functions]);
 

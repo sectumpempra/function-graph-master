@@ -29,6 +29,8 @@ export default function ParamSlider({
   const [rangeStep, setRangeStep] = useState(String(step));
   const animRef = useRef<number>(0);
   const directionRef = useRef(1);
+  const valueRef = useRef(value);
+  useEffect(() => { valueRef.current = value; }, [value]);
 
   const triggerChange = useCallback(
     (v: number) => {
@@ -66,26 +68,27 @@ export default function ParamSlider({
   );
 
   const togglePlay = useCallback(() => {
-    if (isPlaying) {
-      setIsPlaying(false);
-      cancelAnimationFrame(animRef.current);
-    } else {
-      setIsPlaying(true);
-      const speed = (max - min) * 0.005;
-      const animate = () => {
-        setIsPlaying((playing) => {
-          if (!playing) return false;
-          const newVal = value + speed * directionRef.current;
+    setIsPlaying(prev => {
+      if (prev) {
+        // Was playing, now stop
+        cancelAnimationFrame(animRef.current);
+        return false;
+      } else {
+        // Was stopped, now start
+        const speed = (max - min) * 0.005;
+        const animate = () => {
+          const currentValue = valueRef.current;
+          const newVal = currentValue + speed * directionRef.current;
           if (newVal >= max) { directionRef.current = -1; triggerChange(max); }
           else if (newVal <= min) { directionRef.current = 1; triggerChange(min); }
           else triggerChange(newVal);
           animRef.current = requestAnimationFrame(animate);
-          return true;
-        });
-      };
-      animRef.current = requestAnimationFrame(animate);
-    }
-  }, [isPlaying, value, min, max, triggerChange]);
+        };
+        animRef.current = requestAnimationFrame(animate);
+        return true;
+      }
+    });
+  }, [min, max, triggerChange]);
 
   useEffect(() => () => cancelAnimationFrame(animRef.current), []);
 

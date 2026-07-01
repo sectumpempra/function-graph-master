@@ -77,14 +77,28 @@ export default function GraphCanvas({ functions }: GraphCanvasProps) {
     }
   }, [functions, tooltip]);
 
+  // Render loop: only request next frame when rendering is actually needed
   useEffect(() => {
-    let animId: number;
+    let animId: number | null = null;
     const loop = () => {
+      animId = null;
       if (needsRenderRef.current) render();
-      animId = requestAnimationFrame(loop);
     };
-    loop();
-    return () => cancelAnimationFrame(animId);
+
+    // Start loop
+    animId = requestAnimationFrame(loop);
+
+    // Check periodically if new render is needed (e.g. after mouse events set flag)
+    const checkInterval = setInterval(() => {
+      if (needsRenderRef.current && animId === null) {
+        animId = requestAnimationFrame(loop);
+      }
+    }, 50);
+
+    return () => {
+      clearInterval(checkInterval);
+      if (animId !== null) cancelAnimationFrame(animId);
+    };
   }, [render]);
 
   useEffect(() => {

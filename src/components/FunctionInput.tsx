@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useLayoutEffect } from 'react';
 import { Eye, EyeOff, Trash2, Pencil, GitBranch } from 'lucide-react';
 import type { FunctionEntry } from '@/types';
 import { extractParams, compileExpression, convertNumbersToParams, convertNumbersWithExisting } from '@/lib/graphRenderer';
@@ -30,10 +30,12 @@ export default function FunctionInput({ entry, index, onUpdate, onRemove }: Func
   const [exprInput, setExprInput] = useState(entry.expression);
   const [error, setError] = useState('');
 
-  useEffect(() => { setExprInput(entry.expression); }, [entry.expression]);
+  // Sync exprInput when entry.expression changes externally (e.g. preset click)
+  // useLayoutEffect avoids cascading renders that useEffect would cause
+  useLayoutEffect(() => { setExprInput(entry.expression); }, [entry.expression]);
 
   // Auto-enter edit mode when expression is empty
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!entry.expression.trim()) {
       setEditingExpr(true);
     }

@@ -106,9 +106,14 @@ function formatGlobal(expr: string): string {
   return s;
 }
 
+/** Invisible markers to distinguish param values from constants */
+const PM = '\uE001'; // param start marker
+const PE = '\uE002'; // param end marker
+
 /**
- * Build segments: substitute param values, format globally, then scan
- * for param values to create clickable segments.
+ * Build segments: substitute param values (with markers), format globally,
+ * then scan for marked param values to create clickable segments.
+ * Markers ensure param values are never confused with constants.
  */
 function buildSegments(
   expr: string,
@@ -116,36 +121,37 @@ function buildSegments(
 ): { text: string; isParam: boolean; paramName?: string; paramValue?: number }[] {
   if (!expr) return [];
 
-  // Step 1: Substitute param values (longest name first)
+  // Step 1: Substitute param values with invisible markers
+  // e.g. a=1 in "a*x+1" → "\uE0011\uE002*x+1" — the trailing +1 is NOT marked
   let substituted = expr;
   const sortedParams = Object.entries(params).sort((a, b) => b[0].length - a[0].length);
   for (const [name, value] of sortedParams) {
     const valStr = formatValue(value);
-    substituted = substituted.replace(new RegExp(`\\b${name}\\b`, 'g'), valStr);
+    substituted = substituted.replace(
+      new RegExp(`\\b${name}\\b`, 'g'),
+      `${PM}${valStr}${PE}`
+    );
   }
 
   // Step 2: Apply global formatting
   const formatted = formatGlobal(substituted);
 
-  // Step 3: Build search list of all param values
+  // Step 3: Build search list of marked param values
   const searchValues: { valStr: string; name: string; value: number }[] = [];
   for (const [name, value] of sortedParams) {
-    searchValues.push({ valStr: formatValue(value), name, value });
+    searchValues.push({ valStr: `${PM}${formatValue(value)}${PE}`, name, value });
   }
   // Sort by length descending to match longest first
   const sortedByLength = [...searchValues].sort((a, b) => b.valStr.length - a.valStr.length);
 
-  // Step 4: Build segments with proper ^exponent protection
+  // Step 4: Build segments by scanning for marked param values
   const segments: { text: string; isParam: boolean; paramName?: string; paramValue?: number }[] = [];
   let pos = 0;
 
   // Helper: check if a position is part of a ^exponent (e.g. ^2, ^10)
   function getExponentStart(i: number): number {
-    // Walk backward to find the ^ that starts this exponent
     if (i < 0 || i >= formatted.length) return -1;
-    // Check if i points to ^ itself
     if (formatted[i] === '^' && i + 1 < formatted.length && /[0-9]/.test(formatted[i + 1])) return i;
-    // Check if i points to a digit that follows ^
     if (!/[0-9]/.test(formatted[i])) return -1;
     let j = i - 1;
     while (j >= 0 && /[0-9]/.test(formatted[j])) j--;
@@ -172,7 +178,7 @@ function buildSegments(
       continue;
     }
 
-    // Try to match a param value
+    // Try to match a MARKED param value (starts with PM)
     let matched = false;
     for (const { valStr, name, value } of sortedByLength) {
       if (formatted.substring(pos, pos + valStr.length) !== valStr) continue;
@@ -184,21 +190,20 @@ function buildSegments(
       }
       if (overlapsExponent) continue;
 
-      const before = pos > 0 ? formatted[pos - 1] : '';
-      const after = pos + valStr.length < formatted.length ? formatted[pos + valStr.length] : '';
-      if (!/[a-zA-Z0-9.]/.test(before) && !/[a-zA-Z0-9.]/.test(after)) {
-        segments.push({ text: name, isParam: true, paramName: name, paramValue: value });
-        pos += valStr.length;
-        matched = true;
-        break;
-      }
+      // Found a marked param — strip markers for display
+      segments.push({ text: name, isParam: true, paramName: name, paramValue: value });
+      pos += valStr.length;
+      matched = true;
+      break;
     }
     if (matched) continue;
 
-    // Collect non-param text
+    // Collect non-param text (includes unmarked constants)
     let text = '';
     while (pos < formatted.length) {
       if (getExponentStart(pos) >= 0) break; // stop before ^exponent
+
+      // Stop before any marked param value
       let isParamStart = false;
       for (const { valStr } of sortedByLength) {
         if (formatted.substring(pos, pos + valStr.length) !== valStr) continue;
@@ -207,13 +212,10 @@ function buildSegments(
           if (getExponentStart(k) >= 0) { overlapsExp = true; break; }
         }
         if (overlapsExp) continue;
-        const before = pos > 0 ? formatted[pos - 1] : '';
-        const after = pos + valStr.length < formatted.length ? formatted[pos + valStr.length] : '';
-        if (!/[a-zA-Z0-9.]/.test(before) && !/[a-zA-Z0-9.]/.test(after)) {
-          isParamStart = true; break;
-        }
+        isParamStart = true; break;
       }
       if (isParamStart) break;
+
       text += formatted[pos];
       pos++;
     }

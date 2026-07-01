@@ -30,7 +30,7 @@ const MATH_BUILTINS = new Set([
 ]);
 
 const FUNC_NAMES_SORTED = Array.from(MATH_BUILTINS)
-  .filter(n => n.length > 1 && !['pi', 'e', 'x', 't', 'theta'].includes(n))
+  .filter(n => n.length > 1 && !['pi', 'e', 'x', 't', 'theta', 'atan2'].includes(n))
   .sort((a, b) => b.length - a.length);
 
 const NAMES_TO_PROTECT = [...FUNC_NAMES_SORTED, 'theta'];
@@ -311,6 +311,13 @@ function mathToCanvas(mx: number, my: number, cw: number, ch: number, view: View
 export function canvasToMath(cx: number, cy: number, cw: number, ch: number, view: ViewState): [number, number] {
   const up = 40 * view.scale;
   return [(cx - cw / 2 - view.offsetX) / up, (ch / 2 + view.offsetY - cy) / up];
+}
+
+// Extend CanvasRenderingContext2D with roundRect (modern browsers support it)
+declare global {
+  interface CanvasRenderingContext2D {
+    roundRect(x: number, y: number, w: number, h: number, radii: number | number[]): CanvasRenderingContext2D;
+  }
 }
 
 // ==== GRID ====
@@ -624,8 +631,13 @@ export function drawCartesianFunction(ctx: CanvasRenderingContext2D, entry: Func
     const p = entry.params;
 
     // 1. Exponential: a^(bx+c) + d → y = d (NOT x^2 polynomials!)
-    //    Distinguish: a^(...) has '^(' vs x^2 has '^' followed by a number
-    const hasExpAsymptote = exprLower.match(/\^\s*\(/) || exprLower.match(/\d+\^/);
+    //    Distinguish: base^exponent where base is NOT x
+    //    e.g. 2^x, e^(x), a^(2x) have horizontal asymptotes
+    //    x^2, x^(3) do NOT have horizontal asymptotes
+    const hasExpAsymptote =
+      exprLower.match(/[a-wyz0-9]\^\s*\(/) ||  // a^(x), 2^(x) — NOT x^(2)
+      exprLower.match(/\d+\^/) ||                // 2^x, 10^x
+      exprLower.match(/\be\^/);                  // e^x
 
     // 2. Rational: a/(bx+c) + d → y = d
     // Match: /x, /(x, /(2.8x, /(bx, etc. — any denominator containing x
@@ -761,18 +773,31 @@ function findLabelPos(compiled: any, entry: FunctionEntry, w: number, h: number,
   const up = 40 * view.scale;
   const cx0 = w / 2 + view.offsetX;
   const cy0 = h / 2 + view.offsetY;
-  const rx = (w - cx0) / up, lx = (-cx0) / up;
   const off = li * 24;
+
+  if (entry.mode === 'polar') {
+    // For polar: sample at fixed theta values to find a point on the curve
+    // that lies within the visible canvas area
+    const thetas = [Math.PI / 4, Math.PI / 2, Math.PI / 6, Math.PI / 3, Math.PI, 3 * Math.PI / 4];
+    for (const theta of thetas) {
+      const r = evaluatePolar(compiled, theta, entry.params);
+      if (r === null) continue;
+      const mx = r * Math.cos(theta);
+      const my = r * Math.sin(theta);
+      const px = cx0 + mx * up;
+      const py = cy0 - my * up;
+      if (px > 10 && px < w - 140 && py > 20 + off && py < h - 20) {
+        return { cx: px, cy: py - off, ok: true };
+      }
+    }
+    return { cx: w - 130, cy: 30 + li * 24, ok: true };
+  }
+
+  // Cartesian: scan along x-axis at fractional positions
+  const rx = (w - cx0) / up, lx = (-cx0) / up;
   for (const f of [0.85, 0.7, 0.5, 0.3, 0.15]) {
     const tx = lx + (rx - lx) * f;
-    let yv: number | null;
-    if (entry.mode === 'polar') {
-      const r = evaluatePolar(compiled, tx, entry.params);
-      if (r === null) continue;
-      yv = r * Math.sin(tx);
-    } else {
-      yv = evaluateCartesian(compiled, tx, entry.params);
-    }
+    const yv = evaluateCartesian(compiled, tx, entry.params);
     if (yv === null) continue;
     const px = cx0 + tx * up;
     const py = cy0 - yv * up;
@@ -932,20 +957,20 @@ function drawFuncLabel(ctx: CanvasRenderingContext2D, entry: FunctionEntry, w: n
   // Shadow
   ctx.fillStyle = 'rgba(0,0,0,0.08)';
   ctx.beginPath();
-  (ctx as any).roundRect(rx + 1, ry + 2, lw, lh, 6);
+  ctx.roundRect(rx + 1, ry + 2, lw, lh, 6);
   ctx.fill();
 
   // White background
   ctx.fillStyle = 'rgba(255,255,255,0.96)';
   ctx.beginPath();
-  (ctx as any).roundRect(rx, ry, lw, lh, 6);
+  ctx.roundRect(rx, ry, lw, lh, 6);
   ctx.fill();
 
   // Subtle border
   ctx.strokeStyle = 'rgba(0,0,0,0.06)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  (ctx as any).roundRect(rx + 0.5, ry + 0.5, lw - 1, lh - 1, 6);
+  ctx.roundRect(rx + 0.5, ry + 0.5, lw - 1, lh - 1, 6);
   ctx.stroke();
 
   // Colored accent bar on left
@@ -981,7 +1006,7 @@ export function drawFunctionLabels(ctx: CanvasRenderingContext2D, functions: Fun
 // ==== HOVER ====
 export function findNearestPoint(mx: number, my: number, entries: FunctionEntry[], w: number, h: number, view: ViewState): TooltipData | null {
   const [mathX] = canvasToMath(mx, my, w, h, view);
-  let bestY: number | null = null;
+  let bestEntry: TooltipData | null = null;
   let minDist = Infinity;
   for (const entry of entries) {
     if (!entry.visible || !entry.expression.trim()) continue;
@@ -996,22 +1021,43 @@ export function findNearestPoint(mx: number, my: number, entries: FunctionEntry[
       if (dMax !== null && mathX > dMax) continue;
     }
 
-    let yVal: number | null;
     if (entry.mode === 'polar') {
-      const r = evaluatePolar(compiled, mathX, entry.params);
-      if (r === null) continue;
-      yVal = r * Math.sin(mathX);
-    } else {
-      yVal = evaluateCartesian(compiled, mathX, entry.params);
+      // Polar: sample theta values to find geometrically nearest point on curve
+      let bestTheta = 0, bestR = 0, minGeoDist = Infinity;
+      for (let i = 0; i <= 200; i++) {
+        const theta = (i / 200) * 4 * Math.PI;
+        const r = evaluatePolar(compiled, theta, entry.params);
+        if (r === null) continue;
+        const px = r * Math.cos(theta);
+        const py = r * Math.sin(theta);
+        const [cx_, cy_] = mathToCanvas(px, py, w, h, view);
+        const dx = cx_ - mx;
+        const dy = cy_ - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minGeoDist) { minGeoDist = dist; bestR = r; bestTheta = theta; }
+      }
+      if (minGeoDist < 50 && minGeoDist < minDist) {
+        minDist = minGeoDist;
+        const bestX = bestR * Math.cos(bestTheta);
+        const bestY = bestR * Math.sin(bestTheta);
+        const [cX, cY] = mathToCanvas(bestX, bestY, w, h, view);
+        bestEntry = { x: bestTheta, y: bestY, canvasX: cX, canvasY: cY };
+      }
+      continue;
     }
+
+    // Cartesian: find nearest point along vertical line at mouse x
+    const yVal = evaluateCartesian(compiled, mathX, entry.params);
     if (yVal === null) continue;
     const [, canvasY] = mathToCanvas(mathX, yVal, w, h, view);
     const dist = Math.abs(canvasY - my);
-    if (dist < minDist && dist < 50) { minDist = dist; bestY = yVal; }
+    if (dist < minDist && dist < 50) {
+      minDist = dist;
+      const [cX, cY] = mathToCanvas(mathX, yVal, w, h, view);
+      bestEntry = { x: mathX, y: yVal, canvasX: cX, canvasY: cY };
+    }
   }
-  if (bestY === null) return null;
-  const [canvasX, canvasY] = mathToCanvas(mathX, bestY, w, h, view);
-  return { x: mathX, y: bestY, canvasX, canvasY };
+  return bestEntry;
 }
 
 export function drawHoverIndicator(ctx: CanvasRenderingContext2D, tooltip: TooltipData, w: number, h: number, view: ViewState) {
