@@ -152,11 +152,14 @@ export default function FunctionInput({ entry, index, onUpdate, onRemove }: Func
         <span className="text-xs font-medium text-[#6c6c6c]">函数 {index + 1}</span>
         {entry.mode === 'polar' && <span className="text-[9px] font-medium text-white bg-[#4f46e5] px-1.5 py-0.5 uppercase tracking-wider">极坐标</span>}
         <div className="flex-1" />
-        {/* Asymptote toggle — tan, cot, sec, csc, rational, exp, log */}
+        {/* Asymptote toggle — tan, cot, sec, csc, rational, exp, log, inverse trig */}
         {(entry.expression.includes('tan(') ||
           entry.expression.includes('cot(') ||
           entry.expression.includes('sec(') ||
           entry.expression.includes('csc(') ||
+          entry.expression.includes('atan(') ||
+          entry.expression.includes('asin(') ||
+          entry.expression.includes('acos(') ||
           entry.expression.includes('/sin(') ||
           entry.expression.includes('/cos(') ||
           entry.expression.includes('/tan(') ||

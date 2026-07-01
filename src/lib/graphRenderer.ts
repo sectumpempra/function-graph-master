@@ -342,16 +342,30 @@ function getPiStep(up: number): number {
   return PI / 4;
 }
 
-/** Parse a value into π fraction parts for vertical fraction rendering */
+/**
+ * Parse a value into π fraction parts for vertical fraction rendering.
+ * Returns null for values that should be drawn inline (nπ).
+ * Supports: π/4, 3π/4, 5π/4, 7π/4, π/2, 3π/2, 5π/2, ...
+ */
 function getPiFraction(val: number): { num: string; den: string } | null {
   const absVal = Math.abs(val);
-  const halfPiMult = Math.round(absVal / (PI / 2));
-  if (Math.abs(absVal - halfPiMult * PI / 2) > 0.001) return null;
-  if (halfPiMult === 0) return null;
-  if (halfPiMult % 2 === 0) return null; // nπ, draw inline
-  // odd multiple: π/2, 3π/2, 5π/2...
-  const n = halfPiMult;
-  return { num: n === 1 ? 'π' : `${n}π`, den: '2' };
+  const sign = val < 0 ? '-' : '';
+
+  // Check if it's a quarter-π multiple (step = π/4)
+  const qMult = Math.round(absVal / (PI / 4));
+  if (Math.abs(absVal - qMult * PI / 4) > 0.001 || qMult === 0) return null;
+
+  // nπ where n is integer → inline (e.g. π, 2π, 3π)
+  if (qMult % 4 === 0) return null;
+
+  // nπ/2 where n is odd → denominator 2 (e.g. π/2, 3π/2)
+  if (qMult % 2 === 0) {
+    const n = qMult / 2;
+    return { num: sign + (n === 1 ? 'π' : `${n}π`), den: '2' };
+  }
+
+  // nπ/4 where n is odd → denominator 4 (e.g. π/4, 3π/4, 5π/4)
+  return { num: sign + (qMult === 1 ? 'π' : `${qMult}π`), den: '4' };
 }
 
 /** Draw a vertical fraction (numerator over denominator with a bar) at (x, y) */
@@ -384,24 +398,22 @@ function drawFraction(ctx: CanvasRenderingContext2D, x: number, y: number, num: 
   ctx.restore();
 }
 
-/** Draw x-axis label: inline for nπ, vertical fraction for nπ/2 */
+/** Draw x-axis label: inline for nπ, vertical fraction for nπ/2, nπ/4 */
 function drawXAxisLabel(ctx: CanvasRenderingContext2D, val: number, x: number, y: number) {
   const absVal = Math.abs(val);
   if (absVal < 0.0001) return;
 
-  // Check if it's an odd multiple of π/2 → draw as vertical fraction
+  // Check if it's a π fraction → draw as vertical fraction (offset downward)
   const frac = getPiFraction(val);
   if (frac) {
-    // Offset fraction downward so it doesn't overlap the x-axis
     drawFraction(ctx, x, y + 10, frac.num, frac.den);
     return;
   }
 
-  // Inline: nπ
-  const halfPiMult = Math.round(absVal / (PI / 2));
-  if (halfPiMult % 2 === 0) {
-    const n = halfPiMult / 2;
-    const label = n === 1 ? 'π' : (n === -1 ? '-π' : `${n}π`);
+  // Inline: integer multiples of π (π, 2π, 3π, ...)
+  const piMult = Math.round(absVal / PI);
+  if (Math.abs(absVal - piMult * PI) < 0.001 && piMult > 0) {
+    const label = val < 0 ? `-${piMult}π` : `${piMult}π`;
     ctx.fillStyle = '#6c6c6c';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -569,8 +581,13 @@ export function drawCartesianFunction(ctx: CanvasRenderingContext2D, entry: Func
 
   // Skip vertical asymptote detection for:
   // - sinh, cosh: monotonic, no asymptotes
-  // - exponential ^: no vertical asymptotes, but extreme y values cause false detection
-  if (entry.showAsymptotes && !isSinhCosh && !exprLower.includes('^')) {
+  // - exponential functions (a^bx, e^x, 2^x): no vertical asymptotes, but extreme y values cause false detection
+  //   Do NOT skip for polynomials/rationals with x^2, x^(n) in denominator
+  const isExponential =
+    /[a-wyz0-9]\^\s*\(/.test(exprLower) ||  // a^(x), 2^(x) — base^(exponent)
+    /\be\^/.test(exprLower) ||                // e^x
+    /\d+\^/.test(exprLower);                  // 10^x
+  if (entry.showAsymptotes && !isSinhCosh && !isExponential) {
     let prevVal: number | null = null;
     let prevPy: number | null = null;
     for (let i = 0; i <= n; i++) {
